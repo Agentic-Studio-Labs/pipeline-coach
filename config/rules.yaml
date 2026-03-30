@@ -1,0 +1,42 @@
+excluded_stages:
+  - Closed Won
+  - Closed Lost
+
+rules:
+  stale_in_stage:
+    enabled: true
+    default_days: 14
+    by_stage:
+      Qualification: 21
+      Negotiation: 7
+    severity: medium
+
+  no_recent_activity:
+    enabled: true
+    days: 7
+    severity: medium
+
+  close_date_past:
+    enabled: true
+    severity: high
+
+  close_date_soon_no_activity:
+    enabled: true
+    close_date_soon_days: 7
+    no_activity_days: 7
+    severity: high
+
+  missing_amount:
+    enabled: true
+    severity: medium
+
+  missing_close_date:
+    enabled: true
+    severity: medium
+
+  missing_decision_maker:
+    enabled: true
+    by_stage:
+      Proposal: true
+      Negotiation: true
+    severity: low

@@ -1,0 +1,6 @@
+escalation:
+  default_manager: vp-sales@demo.com
+  overrides:
+    alex@demo.com: manager-a@demo.com
+    jordan@demo.com: manager-b@demo.com
+  critical_amount_threshold: 50000
