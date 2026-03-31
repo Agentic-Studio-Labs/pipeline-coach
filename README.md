@@ -24,7 +24,8 @@ This repo is the **open-source core** of Pipeline Coach. It includes the full pi
 | Dashboard               | Local audit trail viewer          | Hosted dashboard with team analytics, trend tracking       |
 | Deployment              | Docker Compose, self-hosted       | Managed cloud (SOC 2, SSO, data residency)                 |
 | Scheduling              | APScheduler (single process)      | Managed scheduler with monitoring and alerting             |
-| Observability           | JSONL audit log                   | Metrics, alerting, run history with Datadog/Prometheus     |
+| Audit trail             | Local JSONL file                  | PostgreSQL-backed with query API, retention policies, export |
+| Observability           | Structured logs                   | Metrics, alerting, run history with Datadog/Prometheus     |
 | Support                 | Community (GitHub Issues)         | Dedicated onboarding, SLAs                                 |
 
 
