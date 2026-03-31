@@ -82,7 +82,7 @@ Run full hygiene analysis on all open opportunities.
       ],
       "suggested_action": "Update the close date — the current one has passed.",
       "action_rationale": "Past close dates reduce forecast accuracy and hide true pipeline health.",
-      "crm_link": "http://localhost:3000/object/opportunity/abc-123"  // uses CRM_PUBLIC_URL if set
+      "crm_link": "http://localhost:3000/object/opportunity/abc-123"
     }
   ]
 }
@@ -90,7 +90,9 @@ Run full hygiene analysis on all open opportunities.
 
 **Tool annotations:** `readOnlyHint: true`, `idempotentHint: true`
 
-**Implementation:** Reuses `normalize_opportunities`, `evaluate_opportunity`, `compute_priority`, `generate_suggested_action_with_rationale` from existing modules. Does NOT send emails. Deep links use `CRM_PUBLIC_URL` if set, otherwise `TWENTY_API_URL` (same logic as `run_once.py`).
+The `crm_link` field uses `CRM_PUBLIC_URL` if set, otherwise `TWENTY_API_URL` (same logic as `run_once.py`).
+
+**Implementation:** Reuses `normalize_opportunities`, `evaluate_opportunity`, `compute_priority`, `generate_suggested_action_with_rationale` from existing modules. Does NOT send emails.
 
 ---
 
