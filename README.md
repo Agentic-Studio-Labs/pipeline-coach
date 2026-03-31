@@ -266,7 +266,29 @@ Reuse your project **`.env`** (see [Quickstart](#quickstart)) in the MCP `env` b
 
 ### Client configuration
 
-Add to `.mcp.json` in the project root (for **Cursor**, use [`.cursor/mcp.json`](https://docs.cursor.com/context/mcp) or the editor’s MCP UI):
+**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "pipeline-coach": {
+      "command": "/path/to/pipeline-coach/.venv/bin/python",
+      "args": ["-m", "pipeline_coach.mcp"],
+      "cwd": "/path/to/pipeline-coach",
+      "env": {
+        "TWENTY_API_URL": "http://localhost:3000",
+        "TWENTY_API_KEY": "your-key",
+        "RESEND_API_KEY": "your-resend-key",
+        "EMAIL_FROM": "pipeline-coach@yourdomain.com"
+      }
+    }
+  }
+}
+```
+
+Note: Claude Desktop requires the full path to the Python binary (not just `python`).
+
+**Claude Code** — add to `.mcp.json` in the project root (for **Cursor**, use [`.cursor/mcp.json`](https://docs.cursor.com/context/mcp) or the editor’s MCP UI):
 
 ```json
 {
