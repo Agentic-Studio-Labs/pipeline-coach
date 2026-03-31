@@ -54,6 +54,8 @@ def render_ae_brief(
             lines.append(f"   - {issue.message}")
         if s.suggested_action:
             lines.append(f"   Suggested action: {s.suggested_action}")
+        if s.action_rationale:
+            lines.append(f"   Why now: {s.action_rationale}")
         link = _opp_link(crm_url, s.opportunity_id)
         if link:
             lines.append(link)

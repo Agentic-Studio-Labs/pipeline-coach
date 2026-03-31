@@ -39,6 +39,7 @@ class IssueSummary(BaseModel):
     issues: list[Issue]
     context: OpportunityContext
     suggested_action: str | None = None
+    action_rationale: str | None = None
 
 
 @dataclass(frozen=True)

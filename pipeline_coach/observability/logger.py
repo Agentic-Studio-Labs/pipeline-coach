@@ -83,6 +83,7 @@ def write_audit_record(
                 "priority": summary.priority,
                 "rule_ids": [issue.rule_id for issue in summary.issues],
                 "suggested_action": summary.suggested_action,
+                "action_rationale": summary.action_rationale,
             }
         )
 

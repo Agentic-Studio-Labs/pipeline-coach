@@ -7,7 +7,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from pipeline_coach.coach.actions import generate_suggested_action
+from pipeline_coach.coach.actions import generate_suggested_action_with_rationale
 from pipeline_coach.coach.brief import render_ae_brief, render_escalation_brief
 from pipeline_coach.coach.quality_gate import validate_action
 from pipeline_coach.config import EscalationConfig, RulesConfig
@@ -127,12 +127,14 @@ def generate_actions(state: PipelineState, *, use_llm: bool) -> dict:
         if summary.suggested_action is not None:
             updated.append(summary)
             continue
-        action = generate_suggested_action(
+        action, rationale = generate_suggested_action_with_rationale(
             ctx=summary.context,
             issues=summary.issues,
             use_llm=use_llm,
         )
-        updated.append(summary.model_copy(update={"suggested_action": action}))
+        updated.append(
+            summary.model_copy(update={"suggested_action": action, "action_rationale": rationale})
+        )
     return {"pending_summaries": updated}
 
 
@@ -156,7 +158,9 @@ def validate_actions(
             current_retries = retry_counts.get(summary.opportunity_id, 0)
             if current_retries < max_retries and use_llm:
                 retry_counts[summary.opportunity_id] = current_retries + 1
-                still_pending.append(summary.model_copy(update={"suggested_action": None}))
+                still_pending.append(
+                    summary.model_copy(update={"suggested_action": None, "action_rationale": None})
+                )
             else:
                 # Exhausted retries or no LLM — use fallback action as-is
                 validated.append(summary)

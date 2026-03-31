@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 from pipeline_coach.coach.actions import (
     _get_fallback,
+    _get_fallback_rationale,
     _render_summary,
     generate_suggested_action,
+    generate_suggested_action_with_rationale,
 )
-
 from pipeline_coach.models import Issue, OpportunityContext
 
 
@@ -69,6 +70,12 @@ class TestFallbackActions:
         assert result is not None
         assert "{" not in result
 
+    def test_fallback_rationale_for_known_rule(self) -> None:
+        issue = _issue("close_date_past", "high", close_date="2026-01-01")
+        result = _get_fallback_rationale([issue])
+        assert result is not None
+        assert "forecast" in result.lower() or "risk" in result.lower()
+
 
 class TestRenderSummary:
     def test_includes_name_and_stage(self) -> None:
@@ -112,6 +119,46 @@ class TestGenerateSuggestedAction:
             result = generate_suggested_action(ctx=ctx, issues=[issue], use_llm=True)
         mock_fn.assert_called_once()
         assert result == "Call the account team to confirm the close date."
+
+    def test_generate_with_rationale_deterministic(self) -> None:
+        issue = _issue("close_date_past", "high", close_date="2026-01-01")
+        ctx = _ctx()
+        action, rationale = generate_suggested_action_with_rationale(
+            ctx=ctx, issues=[issue], use_llm=False
+        )
+        assert action is not None
+        assert rationale is not None
+        assert "close date" in action.lower()
+
+    def test_generate_with_rationale_llm(self) -> None:
+        issue = _issue("close_date_past", "high", close_date="2026-01-01")
+        ctx = _ctx()
+        mock_pred = MagicMock()
+        mock_pred.suggested_action = "Call the account team to confirm the close date."
+        mock_pred.action_rationale = "This prevents forecast drift on a high-priority deal."
+
+        with patch("pipeline_coach.coach.actions._predict_action", return_value=mock_pred):
+            action, rationale = generate_suggested_action_with_rationale(
+                ctx=ctx, issues=[issue], use_llm=True
+            )
+
+        assert action == "Call the account team to confirm the close date."
+        assert rationale == "This prevents forecast drift on a high-priority deal."
+
+    def test_generate_with_rationale_llm_missing_rationale_uses_fallback(self) -> None:
+        issue = _issue("close_date_past", "high", close_date="2026-01-01")
+        ctx = _ctx()
+        mock_pred = MagicMock()
+        mock_pred.suggested_action = "Call the account team to confirm the close date."
+        mock_pred.action_rationale = "   "
+
+        with patch("pipeline_coach.coach.actions._predict_action", return_value=mock_pred):
+            _, rationale = generate_suggested_action_with_rationale(
+                ctx=ctx, issues=[issue], use_llm=True
+            )
+
+        assert rationale is not None
+        assert "forecast" in rationale.lower() or "risk" in rationale.lower()
 
     def test_llm_exception_falls_back_to_deterministic(self) -> None:
         issue = _issue("close_date_past", "high", close_date="2026-01-01")

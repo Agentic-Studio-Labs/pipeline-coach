@@ -125,7 +125,11 @@ DASHBOARD_HTML = """\
     font-family: var(--font-mono); font-size: 10px; background: var(--purple-dim);
     color: var(--purple); padding: 1px 5px; border-radius: 3px; margin-right: 4px;
   }
-  .issue-action { color: var(--text-dim); font-style: italic; }
+  .issue-action { color: var(--text-dim); font-style: italic; line-height: 1.45; }
+  .issue-rationale {
+    margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--blue);
+    font-style: normal; color: #9eb7cf;
+  }
 
   /* Error cards */
   .error-card {
@@ -298,7 +302,10 @@ function renderAudit() {
         <div><span class="priority-badge priority-badge--${i.priority}">${i.priority}</span></div>
         <div class="issue-name">${esc(i.opportunity_name)}</div>
         <div class="issue-rules">${i.rule_ids.map(r => '<code>' + esc(r) + '</code>').join('')}</div>
-        <div class="issue-action">${esc(i.suggested_action || 'No action')}</div>
+        <div class="issue-action">
+          ${esc(i.suggested_action || 'No action')}
+          ${i.action_rationale ? '<div class="issue-rationale">Why now: ' + esc(i.action_rationale) + '</div>' : ''}
+        </div>
       </div>
     `).join('');
 

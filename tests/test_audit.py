@@ -38,6 +38,7 @@ def sample_summary() -> IssueSummary:
         ],
         context=ctx,
         suggested_action="Schedule a call with the Acme team.",
+        action_rationale="This prevents forecast drift on a high-priority deal.",
     )
 
 
@@ -113,6 +114,7 @@ def test_audit_record_structure(tmp_path: Path, sample_summary: IssueSummary) ->
         "priority",
         "rule_ids",
         "suggested_action",
+        "action_rationale",
     ):
         assert key in issue_record, f"Missing key in issue record: {key}"
 
@@ -120,6 +122,7 @@ def test_audit_record_structure(tmp_path: Path, sample_summary: IssueSummary) ->
     assert run_record["emails_sent"] == 2
     assert run_record["emails_failed"] == 1
     assert issue_record["rule_ids"] == ["close_date_past", "stale_in_stage"]
+    assert "forecast drift" in issue_record["action_rationale"]
 
 
 def test_audit_handles_write_error(tmp_path: Path, sample_summary: IssueSummary) -> None:

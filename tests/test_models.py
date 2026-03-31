@@ -4,6 +4,8 @@ from dataclasses import FrozenInstanceError
 from datetime import date, datetime
 
 import pytest
+from pydantic import ValidationError
+
 from pipeline_coach.models import (
     SEVERITY_RANK,
     Brief,
@@ -11,7 +13,6 @@ from pipeline_coach.models import (
     IssueSummary,
     OpportunityContext,
 )
-from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
 # SEVERITY_RANK
@@ -165,10 +166,12 @@ def test_issue_summary_with_issues(
         issues=[sample_issue_critical, sample_issue_stale],
         context=sample_opp_context,
         suggested_action="Call the client.",
+        action_rationale="This helps avoid forecast slippage.",
     )
     assert summary.opportunity_id == "opp-1"
     assert len(summary.issues) == 2
     assert summary.suggested_action == "Call the client."
+    assert summary.action_rationale == "This helps avoid forecast slippage."
 
 
 def test_issue_summary_suggested_action_defaults_none(
@@ -184,6 +187,7 @@ def test_issue_summary_suggested_action_defaults_none(
         context=sample_opp_context,
     )
     assert summary.suggested_action is None
+    assert summary.action_rationale is None
 
 
 def test_issue_summary_invalid_priority_raises(

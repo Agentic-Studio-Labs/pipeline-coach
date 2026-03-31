@@ -58,6 +58,7 @@ def summaries() -> list[IssueSummary]:
         ],
         context=ctx1,
         suggested_action="Schedule a call with the Acme team to confirm the deal timeline.",
+        action_rationale="This prevents forecast drift on a high-priority deal.",
     )
     s2 = IssueSummary(
         opportunity_id="opp-2",
@@ -74,6 +75,7 @@ def summaries() -> list[IssueSummary]:
         ],
         context=ctx2,
         suggested_action="Identify and add a decision maker for Globex.",
+        action_rationale="Without decision maker access, the opportunity can stall.",
     )
     return [s1, s2]
 
@@ -131,6 +133,11 @@ class TestRenderAeBrief:
     def test_body_contains_suggested_action(self, summaries: list[IssueSummary]) -> None:
         result = render_ae_brief("Alex", summaries, today=TODAY)
         assert "Schedule a call with the Acme team" in result.body
+
+    def test_body_contains_action_rationale(self, summaries: list[IssueSummary]) -> None:
+        result = render_ae_brief("Alex", summaries, today=TODAY)
+        assert "Why now:" in result.body
+        assert "forecast drift" in result.body
 
     def test_body_contains_formatted_amount(self, summaries: list[IssueSummary]) -> None:
         result = render_ae_brief("Alex", summaries, today=TODAY)

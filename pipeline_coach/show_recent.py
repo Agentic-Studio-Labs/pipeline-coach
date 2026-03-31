@@ -37,6 +37,8 @@ def show_recent(owner: str, audit_dir: Path = Path("data")) -> None:
                 print(f"    Rules: {', '.join(record['rule_ids'])}")
                 if record.get("suggested_action"):
                     print(f"    Action: {record['suggested_action']}")
+                if record.get("action_rationale"):
+                    print(f"    Why now: {record['action_rationale']}")
                 print()
 
 
