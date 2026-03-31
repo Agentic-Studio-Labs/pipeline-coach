@@ -224,9 +224,11 @@ class TestReadAuditRuns:
 
     def test_respects_limit(self, tmp_path: Path) -> None:
         audit_file = tmp_path / "audit_log.jsonl"
+        timestamps = ["2026-03-25T10:00:00Z", "2026-03-26T10:00:00Z", "2026-03-27T10:00:00Z",
+                       "2026-03-28T10:00:00Z", "2026-03-29T10:00:00Z"]
         lines = []
-        for i in range(5):
-            lines.append(json.dumps({"type": "run", "run_id": f"r{i}", "timestamp": f"2026-03-3{i}T10:00:00Z",
+        for i, ts in enumerate(timestamps):
+            lines.append(json.dumps({"type": "run", "run_id": f"r{i}", "timestamp": ts,
                                       "opportunities_with_issues": 0, "emails_sent": 0, "emails_failed": 0,
                                       "errors": []}))
         audit_file.write_text("\n".join(lines) + "\n")
@@ -284,6 +286,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import date
 from pathlib import Path
@@ -330,7 +333,8 @@ def fetch_all_contexts(
     )
     tasks = twenty_client.fetch_all(
         "tasks",
-        "id createdAt status taskTargets { edges { node { targetOpportunityId } } }",
+        "id createdAt updatedAt status completedAt "
+        "taskTargets { edges { node { targetOpportunityId } } }",
     )
     workspace_members = twenty_client.fetch_all(
         "workspaceMembers",
@@ -380,12 +384,10 @@ _UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 def fuzzy_match_opportunity(
     query: str, contexts: list[OpportunityContext]
 ) -> tuple[OpportunityContext | None, MatchInfo]:
-    import re
-
     # 1. Exact ID match
     if re.match(_UUID_RE, query, re.IGNORECASE):
         for ctx in contexts:
-            if ctx.id == query:
+            if ctx.id.lower() == query.lower():
                 return ctx, {"matched_name": ctx.name, "match_type": "exact_id", "other_matches": []}
 
     # 2. Case-insensitive exact name match
@@ -1027,6 +1029,8 @@ def handle_get_rules_config(
 ) -> dict[str, Any]:
     config_dir = config_dir or Path("config")
     rules_path = config_dir / "rules.yaml"
+    if not rules_path.exists():
+        return {"error": "rules.yaml not found", "path": str(rules_path)}
     with open(rules_path) as f:
         data = yaml.safe_load(f)
     return {
@@ -1074,7 +1078,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from pipeline_coach.config import load_app_config, load_escalation_config, load_rules_config
+from pipeline_coach.config import load_app_config, load_rules_config
 from pipeline_coach.ingestion.twenty_client import TwentyClient
 from pipeline_coach.mcp.helpers import get_crm_url
 from pipeline_coach.mcp.tools import (
@@ -1094,18 +1098,16 @@ _READ_ONLY = ToolAnnotations(readOnlyHint=True, idempotentHint=True)
 _twenty_client: TwentyClient | None = None
 _app_config = None
 _rules_config = None
-_escalation_config = None
 _crm_url: str = ""
 _config_dir = Path("config")
 
 
 def _ensure_initialized() -> None:
-    global _twenty_client, _app_config, _rules_config, _escalation_config, _crm_url
+    global _twenty_client, _app_config, _rules_config, _crm_url
     if _twenty_client is not None:
         return
     _app_config = load_app_config()
     _rules_config = load_rules_config(_config_dir / "rules.yaml")
-    _escalation_config = load_escalation_config(_config_dir / "escalation.yaml")
     _twenty_client = TwentyClient(
         base_url=_app_config.twenty_api_url, api_key=_app_config.twenty_api_key,
     )
@@ -1237,13 +1239,13 @@ def resource_latest_audit() -> str:
     return json.dumps(runs[0], indent=2)
 ```
 
-- [ ] **Step 2: Verify the server starts**
+- [ ] **Step 2: Verify the server starts (best-effort)**
 
 ```bash
-echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}},"id":1}' | .venv/bin/python -m pipeline_coach.mcp 2>/dev/null | head -1
+echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}},"id":1}' | timeout 5 .venv/bin/python -m pipeline_coach.mcp 2>/dev/null | head -1
 ```
 
-Expected: JSON response with server capabilities
+Expected: JSON response with server capabilities, or at minimum no import errors on startup. The full MCP handshake requires a real client (Claude Code, Cursor, or `npx @modelcontextprotocol/inspector`). If this step flakes on the pipe, verify imports work: `.venv/bin/python -c "from pipeline_coach.mcp.server import mcp; print(mcp.name)"`
 
 - [ ] **Step 3: Commit**
 
@@ -1296,7 +1298,7 @@ pip install -e ".[mcp]"
 
 ### Claude Code
 
-Add to `.mcp.json` in the project root:
+Add to `.mcp.json` in the project root (Claude Code). For Cursor, use `.cursor/mcp.json`. Adjust path and config location to your client.
 
 ```json
 {
