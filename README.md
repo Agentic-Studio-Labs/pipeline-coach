@@ -244,7 +244,18 @@ python -m pipeline_coach.smoke_test
 
 Pipeline Coach includes an MCP (Model Context Protocol) server for querying pipeline intelligence from AI clients like Claude Code and Cursor. Design detail: [`docs/design/2026-03-31-mcp-server-design.md`](docs/design/2026-03-31-mcp-server-design.md).
 
-### Setup
+### Quick install
+
+The installer auto-detects Claude Desktop, Claude Code, and Cursor, reads your `.env` for API keys, and writes the config to each client:
+
+```bash
+pip install -e ".[mcp]"
+python scripts/install_mcp.py
+```
+
+Restart your AI client after running. Test it by asking: "What deals need attention?"
+
+### Manual setup
 
 ```bash
 pip install -e ".[mcp]"
