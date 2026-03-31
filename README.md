@@ -239,11 +239,9 @@ python -m pipeline_coach.smoke_test
 
 **LangGraph orchestration** with three patterns that justify the framework: parallel fan-out (5 concurrent GraphQL fetches), quality gate retry loop (generate action -> validate -> retry or fallback), and conditional escalation routing (critical deals branch to manager path).
 
-Business-friendly one-screen view (image):
+![Pipeline Coach Architecture](docs/diagrams/pipeline-coach-architecture-exec.png)
 
-Pipeline Coach executive architecture
-
-Direct PNG link: [pipeline-coach-architecture-exec.png](docs/diagrams/pipeline-coach-architecture-exec.png)
+[Full technical diagram (HTML)](docs/diagrams/pipeline-coach-architecture.html) | [Technical diagram (PNG)](docs/diagrams/pipeline-coach-architecture.png)
 
 ### Architecture ownership map
 
@@ -275,6 +273,10 @@ High-level flow (the table below maps each block to concrete files):
 - In that case, the failure usually lives in the LLM transport/provider layer (credentials, model string, provider capabilities), not in LangGraph routing logic.
 
 **Audit trail.** Every run appends JSONL records to `data/audit_log.jsonl` — one run summary and one record per flagged opportunity. View via the dashboard at port 8080 or the CLI (`show_recent`). PII redaction available via `AUDIT_REDACT_PII=true`.
+
+| Audit Trail | System Errors |
+|---|---|
+| ![Audit Trail](docs/screenshots/dashboard-audit-trail.png) | ![System Errors](docs/screenshots/dashboard-errors.png) |
 
 **Custom CRM field.** The seed script creates a `stageChangedAt` DateTime field on the Opportunity object in Twenty. This enables accurate "days in stage" tracking (Twenty's built-in `updatedAt` resets on any field edit, not just stage changes).
 
