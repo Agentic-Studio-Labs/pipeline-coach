@@ -1,6 +1,6 @@
 # Pipeline Coach
 
-A daily pipeline hygiene coach for [Twenty CRM](https://twenty.com). Scans open opportunities for staleness, missing data, and overdue close dates; generates suggested actions; and emails each AE a concise brief every morning.
+A daily pipeline hygiene coach for [Twenty CRM](https://twenty.com). Scans open opportunities for staleness, missing data, and overdue close dates, generates suggested next-best-actions (via LLM or deterministic templates), and emails each AE a prioritized brief every morning. Critical deals are escalated to managers.
 
 **License:** Apache 2.0
 
@@ -11,59 +11,77 @@ A daily pipeline hygiene coach for [Twenty CRM](https://twenty.com). Scans open 
 ```bash
 # 1. Configure environment
 cp .env.example .env
-# Edit .env — set TWENTY_API_KEY, RESEND_API_KEY, EMAIL_FROM
+# Edit .env — set TWENTY_API_KEY (get from Twenty Settings > APIs & Webhooks)
+# Set RESEND_API_KEY and EMAIL_FROM for email delivery
+# LLM_API_KEY is optional — leave commented out for deterministic actions
 
-# 2. Start Twenty CRM + Pipeline Coach
-docker compose up
+# 2. Start Twenty CRM
+docker compose up -d twenty-db twenty-redis twenty twenty-worker
 
-# 3. Seed Twenty with sample data (optional)
-docker compose run --rm pipeline-coach python scripts/seed_twenty.py
+# 3. Wait for Twenty to become healthy (~60-90 seconds for first boot)
+docker compose ps  # wait until twenty shows "healthy"
 
-# 4. Verify connectivity (smoke test)
-docker compose run --rm pipeline-coach-smoke
+# 4. Open Twenty and create your workspace
+open http://localhost:3000
+# Sign up, then go to Settings > APIs & Webhooks > Create API Key
+# Copy the key into .env as TWENTY_API_KEY
 
-# 5. Run the pipeline manually
-docker compose run --rm pipeline-coach python -m pipeline_coach --once
+# 5. Seed sample data (creates companies, contacts, opportunities, tasks)
+.venv/bin/python scripts/seed_twenty.py
+# Use --nuke to wipe ALL existing data first
+# Use --clean to remove only previously seeded data
+
+# 6. Run the pipeline once
+.venv/bin/python -m pipeline_coach --once
+
+# 7. View audit dashboard
+.venv/bin/python -m pipeline_coach.dashboard
+# Open http://localhost:8080
 ```
 
-The scheduler service (`pipeline-coach`) runs automatically at `RUN_AT_HOUR` (default 08:00 local time) each day.
+### Docker-only quickstart
+
+```bash
+docker compose up -d                                          # start everything
+docker compose run --rm pipeline-coach-smoke                  # verify connectivity
+docker compose run --rm pipeline-coach python -m pipeline_coach --once  # run pipeline
+```
+
+Note: when running inside Docker, the Twenty URL is `http://twenty:3000` (set in `.env.example`). When running locally outside Docker, use `http://localhost:3000`.
 
 ---
 
 ## How It Works
 
-The pipeline runs as a LangGraph state machine with six stages:
+Pipeline Coach runs as a [LangGraph](https://github.com/langchain-ai/langgraph) state machine:
 
-1. **Ingest** — Five parallel nodes fetch companies, people, opportunities, tasks, and workspace members from the Twenty GraphQL API.
-2. **Normalize** — Raw records are joined and enriched into `OpportunityContext` objects: owner name/email, company name, contact email, open task count, days stale.
-3. **Evaluate rules** — Each opportunity is checked against configurable rules: stale in stage, no recent activity, close date past, close date soon with no activity, missing amount, missing close date, missing decision maker.
-4. **Generate actions** — A fallback heuristic (or optional LLM via DSPy) produces a one-sentence suggested action for each flagged opportunity.
-5. **Quality gate** — Validates that each suggested action is non-empty and addresses at least one flagged issue. LLM-generated actions retry up to 2 times before falling back to heuristic.
-6. **Route and deliver** — Opportunities are bucketed by severity and escalation config. Each AE receives a prioritized brief; managers are CC'd when configured thresholds are exceeded. Emails are sent via Resend.
+1. **Parallel fetch** — Five nodes concurrently fetch companies, people, opportunities, tasks, and workspace members from Twenty's GraphQL API.
+2. **Normalize** — Raw records are joined into `OpportunityContext` objects: owner name/email (from workspace members), company name, last activity date (from linked tasks), days in stage (from `stageChangedAt` custom field).
+3. **Rule evaluation** — Each opportunity is checked against 7 configurable hygiene rules. Terminal stages (e.g., `CUSTOMER`) are filtered out.
+4. **Action generation** — [DSPy](https://dspy.ai) generates a context-aware suggested action per deal via LLM. Without an LLM key, deterministic templates provide fallback actions.
+5. **Quality gate** — Validates each suggested action is non-empty, contains an action verb, and isn't just restating the issue. LLM actions retry up to 2x before falling back to templates.
+6. **Route and deliver** — Deals are grouped by AE. High-priority deals above the amount threshold are escalated to managers. Emails are sent via [Resend](https://resend.com) with deep links to each opportunity in Twenty.
 
 ---
 
 ## Configuration
 
-All configuration lives in `config/` (YAML files) and `.env` (secrets and runtime settings).
-
 ### `config/rules.yaml`
 
-Controls which hygiene rules are active and their thresholds:
+Controls which hygiene rules fire and their thresholds. Stage names must match your Twenty CRM stages (default: `NEW`, `SCREENING`, `MEETING`, `PROPOSAL`, `CUSTOMER`).
 
 ```yaml
 excluded_stages:
-  - CLOSED_WON
-  - CLOSED_LOST
+  - CUSTOMER          # terminal stage — skip these opportunities
 
 rules:
   stale_in_stage:
     enabled: true
-    default_days: 14
+    default_days: 14  # days before flagging as stale
     by_stage:
-      MEETING_SCHEDULED: 7
-      PROPOSAL_SENT: 10
-    severity: high
+      SCREENING: 21   # more patience for early-stage
+      PROPOSAL: 7     # less patience for late-stage
+    severity: medium
 
   no_recent_activity:
     enabled: true
@@ -77,7 +95,7 @@ rules:
   close_date_soon_no_activity:
     enabled: true
     close_date_soon_days: 7
-    no_activity_days: 3
+    no_activity_days: 7
     severity: high
 
   missing_amount:
@@ -91,35 +109,38 @@ rules:
   missing_decision_maker:
     enabled: true
     by_stage:
-      PROPOSAL_SENT: true
-      NEGOTIATION: true
+      PROPOSAL: true  # only flag in these stages
     severity: low
 ```
 
 ### `config/escalation.yaml`
 
-Controls when issues are escalated to a manager:
+Controls when and where critical deals are escalated:
 
 ```yaml
-default_manager: manager@example.com
-critical_amount_threshold: 50000.0
-overrides:
-  ae@example.com: their-manager@example.com
+escalation:
+  default_manager: vp-sales@yourcompany.com
+  overrides:
+    ae1@yourcompany.com: manager-a@yourcompany.com
+    ae2@yourcompany.com: manager-b@yourcompany.com
+  critical_amount_threshold: 50000   # high priority + amount >= this triggers escalation
 ```
 
 ### `.env`
 
-| Variable | Required | Description |
-|---|---|---|
-| `TWENTY_API_URL` | Yes | Twenty CRM base URL (e.g. `http://twenty:3000`) |
-| `TWENTY_API_KEY` | Yes | Twenty API key |
-| `RESEND_API_KEY` | Yes | Resend API key for sending emails |
-| `EMAIL_FROM` | Yes | Sender address (e.g. `coach@yourcompany.com`) |
-| `LLM_API_KEY` | No | Enables LLM-generated actions via DSPy |
-| `LLM_MODEL` | No | DSPy model string (default: `openai/gpt-4o-mini`) |
-| `RUN_AT_HOUR` | No | Hour (0–23) to run daily (default: `8`) |
-| `AUDIT_REDACT_PII` | No | Redact emails/names in audit log (default: `false`) |
-| `AUDIT_LOG_RETENTION_DAYS` | No | Days to retain audit records (default: `30`) |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `TWENTY_API_URL` | Yes | — | Twenty CRM base URL (`http://localhost:3000` locally, `http://twenty:3000` in Docker) |
+| `TWENTY_API_KEY` | Yes | — | Twenty API key (Settings > APIs & Webhooks) |
+| `RESEND_API_KEY` | Yes | — | [Resend](https://resend.com) API key |
+| `EMAIL_FROM` | Yes | — | Sender address (must be verified domain in Resend) |
+| `LLM_API_KEY` | No | — | Enables LLM-generated actions via DSPy. Supports any [LiteLLM](https://docs.litellm.ai/) provider. |
+| `LLM_MODEL` | No | `openai/gpt-4o-mini` | Model string in `provider/model` format |
+| `RUN_AT_HOUR` | No | `8` | Hour (0-23) for the daily scheduler |
+| `AUDIT_REDACT_PII` | No | `false` | Redact owner emails/names in audit log |
+| `AUDIT_LOG_RETENTION_DAYS` | No | `30` | Days to retain audit records |
+
+For Docker Compose, `TWENTY_APP_SECRET` is also needed (auto-generated with a default in docker-compose.yml).
 
 ---
 
@@ -127,57 +148,71 @@ overrides:
 
 | Command | Description |
 |---|---|
-| `python -m pipeline_coach` | Start the scheduler (runs daily at `RUN_AT_HOUR`) |
 | `python -m pipeline_coach --once` | Run the pipeline once and exit |
-| `python -m pipeline_coach.show_recent --owner ae@example.com` | Show last run results for an AE |
-| `python -m pipeline_coach.smoke_test` | Connectivity, schema, and dry-run check |
-| `python scripts/seed_twenty.py` | Seed Twenty with sample companies, contacts, and opportunities |
+| `python -m pipeline_coach` | Start the daily scheduler (runs at `RUN_AT_HOUR`) |
+| `python -m pipeline_coach.dashboard` | Audit trail dashboard at http://localhost:8080 |
+| `python -m pipeline_coach.show_recent --owner ae@co.com` | Show last run results for an AE |
+| `python -m pipeline_coach.smoke_test` | Connectivity + schema + dry-run check |
+| `python scripts/seed_twenty.py` | Seed Twenty with sample data |
+| `python scripts/seed_twenty.py --nuke` | Wipe ALL CRM data, then seed fresh |
+| `python scripts/seed_twenty.py --clean` | Remove previously seeded data only |
+
+### Docker Compose services
+
+| Service | Port | Description |
+|---|---|---|
+| `twenty` | 3000 | Twenty CRM |
+| `twenty-db` | — | PostgreSQL 16 |
+| `twenty-redis` | — | Redis (queues/cache) |
+| `twenty-worker` | — | Twenty background worker |
+| `pipeline-coach` | — | Daily scheduler |
+| `pipeline-coach-dashboard` | 8080 | Audit trail web UI |
+| `pipeline-coach-smoke` | — | One-shot smoke test |
+
+---
+
+## Seed Script
+
+The seed script (`scripts/seed_twenty.py`) creates:
+
+- 5 companies (Acme Corp, Northwind, GlobalSoft, Brightwave, NimbusHQ)
+- 10 contacts with company associations
+- 15 opportunities across stages with varied hygiene issues (missing amounts, past close dates, stale deals)
+- 8 tasks linked to opportunities via `taskTargets`
+- A `stageChangedAt` custom field on the Opportunity object (for accurate days-in-stage tracking)
+
+The script also auto-detects the first workspace member and assigns them as the owner of all seeded opportunities.
 
 ---
 
 ## Testing
-
-### Unit tests
 
 ```bash
 pip install -e ".[dev]"
 pytest
 ```
 
-Tests cover rule evaluation, priority scoring, normalizer, brief rendering, escalation routing, and quality gate. The LLM and email clients are mocked.
+**139 unit tests** covering rule evaluation, priority scoring, normalizer (GraphQL response mapping), brief rendering, escalation routing, quality gate, audit logging, and workflow graph nodes. External services (Twenty, Resend, LLM) are mocked.
 
-### Smoke test
-
-The smoke test (`pipeline_coach/smoke_test.py`) verifies:
-
-1. Config loads correctly from env and `config/`
-2. Twenty CRM is reachable and the API key is valid
-3. The required GraphQL schema fields exist (opportunities with all fields, workspaceMembers)
-4. The full pipeline graph completes a dry run against real data with a mock email client
-
-Run it before deploying or after a Twenty upgrade:
-
+The **smoke test** verifies real connectivity:
 ```bash
 python -m pipeline_coach.smoke_test
-# or via docker compose:
-docker compose run --rm pipeline-coach-smoke
+# or: docker compose run --rm pipeline-coach-smoke
 ```
-
-Exit code 0 = all checks passed. Non-zero = failure details printed to stdout.
 
 ---
 
 ## Architecture
 
-**Monolith, single process.** Pipeline Coach is a single Python process: no worker queues, no databases of its own, no external state beyond the Twenty API and the local audit log (`data/audit_log.jsonl`).
+**Single process, read-only.** Pipeline Coach never writes to Twenty CRM. All output is delivered as email suggestions for humans to act on.
 
-**Read-only against Twenty.** The agent never writes back to Twenty CRM. All mutations (task creation, note updates) are left as future work.
+**LangGraph orchestration** with three patterns that justify the framework: parallel fan-out (5 concurrent GraphQL fetches), quality gate retry loop (generate action -> validate -> retry or fallback), and conditional escalation routing (critical deals branch to manager path).
 
-**Agent identity.** When `LLM_API_KEY` is set, DSPy calls the configured LLM to generate one-sentence suggested actions. Without a key, a deterministic heuristic generates fallback actions. The quality gate runs either way.
+**Audit trail.** Every run appends JSONL records to `data/audit_log.jsonl` — one run summary and one record per flagged opportunity. View via the dashboard at port 8080 or the CLI (`show_recent`). PII redaction available via `AUDIT_REDACT_PII=true`.
 
-**Audit log.** Every run appends JSONL records to `data/audit_log.jsonl`: one `run` record and one `issue` record per flagged opportunity. PII (email addresses, names) can be redacted with `AUDIT_REDACT_PII=true`.
+**Custom CRM field.** The seed script creates a `stageChangedAt` DateTime field on the Opportunity object in Twenty. This enables accurate "days in stage" tracking (Twenty's built-in `updatedAt` resets on any field edit, not just stage changes).
 
-**Slack (future).** Delivery currently supports email only. A Slack delivery channel is planned for v2.
+**Future.** Slack delivery, CRM write-back (auto-created tasks), DSPy prompt optimization with training examples, and multi-tenant support are designed for but not implemented in v1.
 
 ---
 
@@ -185,13 +220,12 @@ Exit code 0 = all checks passed. Non-zero = failure details printed to stdout.
 
 | Component | Library |
 |---|---|
-| Workflow graph | [LangGraph](https://github.com/langchain-ai/langgraph) |
-| LLM integration | [DSPy](https://github.com/stanfordnlp/dspy) |
-| CRM client | [Twenty GraphQL API](https://twenty.com) via [httpx](https://www.python-httpx.org/) |
-| Email delivery | [Resend](https://resend.com) |
-| Data models | [Pydantic v2](https://docs.pydantic.dev/) |
+| Workflow | [LangGraph](https://github.com/langchain-ai/langgraph) |
+| LLM | [DSPy 3.x](https://github.com/stanfordnlp/dspy) via [LiteLLM](https://docs.litellm.ai/) |
+| CRM | [Twenty GraphQL API](https://twenty.com) via [httpx](https://www.python-httpx.org/) |
+| Email | [Resend](https://resend.com) |
+| Models | [Pydantic v2](https://docs.pydantic.dev/) |
 | Scheduling | [APScheduler](https://apscheduler.readthedocs.io/) |
-| Structured logging | [structlog](https://www.structlog.org/) |
-| Config parsing | PyYAML |
+| Logging | [structlog](https://www.structlog.org/) |
 | Testing | pytest + pytest-mock |
-| Linting/formatting | ruff |
+| Linting | ruff |

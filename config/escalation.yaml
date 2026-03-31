@@ -1,5 +1,6 @@
 escalation:
-  default_manager: jonathan+manager@agenticstudiolabs.com
+  default_manager: vp-sales@demo.com
   overrides:
-    jonathan@agenticstudiolabs.com: jonathan+manager@agenticstudiolabs.com
+    alex@demo.com: manager-a@demo.com
+    jordan@demo.com: manager-b@demo.com
   critical_amount_threshold: 50000
