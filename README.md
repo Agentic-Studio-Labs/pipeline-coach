@@ -322,12 +322,23 @@ Core value does not depend on LLM novelty:
 - Per-run audit trail for traceability
 - Quality gate and bounded retry behavior for safer automation
 
-### TODOs (near-term)
+### Open Source Roadmap
 
-- [x] Add one-sentence "Why now" rationale per suggested action (implemented in v1)
-- [ ] Add per-AE action dedupe/synthesis to reduce repetitive guidance
-- [ ] Add checkpoint/resume for interrupted runs
-- [ ] Add selective LLM generation for highest-impact opportunities first
+Improvements scoped to this repo. Contributions welcome.
+
+- [x] "Why now" rationale per suggested action
+- [x] Audit trail dashboard with system errors tab
+- [x] Deep links to opportunities in CRM from email briefs
+- [x] `stageChangedAt` custom field for accurate days-in-stage
+- [ ] Per-AE action dedupe — synthesize repeated guidance across deals instead of repeating
+- [ ] Checkpoint/resume for interrupted runs (LangGraph checkpointer)
+- [ ] Selective LLM generation — prioritize highest-impact opportunities to control cost
+- [ ] Incremental fetch — only pull opportunities updated since last run
+- [ ] HTML email templates — richer formatting than plain text
+- [ ] Configurable brief length — cap at top N deals per AE
+- [ ] Integration test suite against real Twenty instance
+
+For multi-CRM support, Slack delivery, CRM write-back, managed cloud, and rep feedback loops, see [Enterprise](#open-source-vs-enterprise).
 
 ---
 
