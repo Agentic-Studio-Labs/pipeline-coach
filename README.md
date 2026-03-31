@@ -284,45 +284,43 @@ High-level flow (the table below maps each block to concrete files):
 
 ## Why Agentic Patterns
 
-### What it delivers in v1
+### What they deliver in the open-source core
 
-**Reliable action output.** Suggested actions run through a quality gate (non-empty, action-oriented, not just restating the issue). If LLM output fails quality checks, the workflow retries per opportunity and then falls back to deterministic templates.
+**Quality gate with self-correction.** A traditional pipeline either accepts bad LLM output or fails. The generate, validate, retry cycle means the system self-corrects per opportunity. After 2 retries, it falls back to deterministic templates. The pipeline always produces output.
 
-**Explicit, testable orchestration.** LangGraph defines the pipeline as named stages with clear transitions: fetch -> normalize -> evaluate -> generate -> validate -> route -> deliver. This makes flow control and failure handling easier to reason about than ad hoc branching.
+**Parallel data ingestion.** Five concurrent GraphQL fetches run simultaneously via LangGraph fan-out. For a CRM with hundreds of opportunities, this cuts wall-clock time compared to sequential fetches.
 
-**Targeted escalation.** The routing step separates normal AE guidance from manager escalation based on priority and amount thresholds, so high-risk deals are highlighted without spamming managers on every issue.
+**Conditional escalation routing.** Critical deals (high priority + large amount) branch to a separate manager escalation path alongside the standard AE brief. Adding a new routing branch is one conditional edge, not a restructure.
 
-### What it does not claim
+### What this is not
 
-- It is not an autonomous research agent. It does not independently choose tools or goals at runtime.
-- It is not real-time in v1; it is a scheduled batch workflow.
-- It is not positioned as infinite-scale architecture in v1; it is designed for practical daily CRM hygiene runs.
+- Not an autonomous agent. It does not choose tools or goals at runtime. It runs a fixed workflow on a schedule.
+- Not real-time. It is a daily batch job.
+- Not over-engineered for its own sake. A plain Python script would work for v1. The framework is an investment in the growth path below.
 
-### Scale posture (today vs next)
+### How the architecture supports growth
 
-**Today:** full-scan, paginated ingestion; in-memory normalization and rule evaluation; LLM calls only for flagged opportunities with bounded retries.
+The open-source core establishes patterns that Pipeline Coach Enterprise builds on:
 
-**Next for larger datasets:** move to incremental fetch windows, partition processing into chunks, and apply selective LLM generation (for top-priority subsets first) to control latency and cost.
-
-### Why this still helps as the product grows
-
-| Growth need | Pattern already in place | Practical next step |
-| --- | --- | --- |
-| Human feedback loop | Stateful graph stages | Add reply/webhook input to update next-run behavior |
-| Higher data volume | Fan-out/fan-in boundaries | Incremental sync + chunked execution + queue workers |
-| Lower LLM cost | Quality gate + deterministic fallback | Prioritize LLM on highest-impact opportunities only |
-| New delivery channels | Routing node abstraction | Add Slack or CRM-task branch without rewriting core rules |
-| Multi-CRM support | Normalizer boundary | Add connector-specific mappers into shared `OpportunityContext` |
+| Pattern in OSS core | What it enables in Enterprise |
+|---|---|
+| Quality gate + deterministic fallback | Prompt optimization from rep feedback (DSPy optimizer with training examples) |
+| LangGraph fan-out/fan-in | Multi-CRM connectors as parallel fetch nodes (Salesforce, HubSpot, Pipedrive) |
+| Conditional routing node | Slack DMs, Teams, in-app notifications as additional delivery branches |
+| Normalizer boundary (`OpportunityContext`) | CRM-agnostic rule engine — same rules work across any CRM |
+| Structured `Brief` output | CRM write-back (auto-created tasks, notes) as another output node |
+| Audit trail per run | Team analytics dashboard, trend tracking, compliance reporting |
+| LangGraph checkpointing (roadmap) | Human-in-the-loop — reps respond to briefs, feedback feeds next run |
 
 ### Foundation first
 
-Core value does not depend on LLM novelty:
+The core value does not depend on LLM novelty. If you stripped out DSPy and LangGraph entirely, these would still be useful:
 
-- Deterministic YAML-driven rule engine
+- Deterministic YAML-driven rule engine with per-stage thresholds
 - Structured data models (`OpportunityContext`, `Issue`, `IssueSummary`)
-- Stable normalization layer for CRM schema drift
-- Per-run audit trail for traceability
-- Quality gate and bounded retry behavior for safer automation
+- Normalizer as the single mapping layer for CRM schema changes
+- Per-run audit trail with optional PII redaction
+- Quality gate pattern for validating any generated output
 
 ### Open Source Roadmap
 
