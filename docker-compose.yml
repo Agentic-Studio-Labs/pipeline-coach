@@ -1,0 +1,53 @@
+services:
+  twenty-db:
+    image: postgres:15
+    volumes:
+      - twenty_pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: twenty
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: twenty
+
+  twenty:
+    image: twentyhq/twenty:latest
+    depends_on:
+      twenty-db:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://twenty:twenty@twenty-db:5432/twenty
+      SERVER_URL: http://localhost:3000
+      FRONT_BASE_URL: http://localhost:3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  pipeline-coach:
+    build: .
+    depends_on:
+      twenty:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+
+  pipeline-coach-smoke:
+    build: .
+    depends_on:
+      twenty:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    command: ["python", "-m", "pipeline_coach.smoke_test"]
+
+volumes:
+  twenty_pg_data:
