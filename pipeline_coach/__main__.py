@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 
 def main() -> None:
-    load_dotenv()
+    load_dotenv(override=True)
     parser = argparse.ArgumentParser(description="Pipeline Coach")
     parser.add_argument("--once", action="store_true", help="Run the pipeline once and exit")
     parser.add_argument(

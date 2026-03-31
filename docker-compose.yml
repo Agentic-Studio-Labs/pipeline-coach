@@ -69,6 +69,14 @@ services:
       - ./config:/app/config
       - ./data:/app/data
 
+  pipeline-coach-dashboard:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    command: ["python", "-m", "pipeline_coach.dashboard", "--port", "8080", "--audit-dir", "/app/data"]
+
   pipeline-coach-smoke:
     build: .
     depends_on:

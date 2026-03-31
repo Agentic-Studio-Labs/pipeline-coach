@@ -35,11 +35,21 @@ class SuggestActionSig(dspy.Signature):
     )
 
 
-_predictor = dspy.Predict(SuggestActionSig)
+_predictor: dspy.Predict | None = None
+
+
+def _get_predictor() -> dspy.Predict:
+    global _predictor  # noqa: PLW0603
+    if _predictor is None:
+        _predictor = dspy.Predict(SuggestActionSig)
+    return _predictor
 
 
 def _predict_action(summary: str, issues_text: str) -> dspy.Prediction:
-    return _predictor(opportunity_summary=summary, issues=issues_text)
+    return _get_predictor()(
+        opportunity_summary=summary,
+        issues=issues_text,
+    )
 
 
 def _render_summary(ctx: OpportunityContext) -> str:
@@ -82,5 +92,7 @@ def generate_suggested_action(
         prediction = _predict_action(summary, issues_text)
         return prediction.suggested_action.strip()
     except Exception:
-        logger.warning("DSPy prediction failed; falling back to deterministic action")
+        logger.warning(
+            "DSPy prediction failed; falling back to deterministic action", exc_info=True
+        )
         return _get_fallback(issues)

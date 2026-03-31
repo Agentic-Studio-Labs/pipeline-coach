@@ -8,3 +8,4 @@ dist/
 data/
 scripts/seed_output.json
 .venv/
+uv.lock

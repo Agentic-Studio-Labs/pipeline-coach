@@ -47,6 +47,7 @@ def write_audit_record(
     summaries: list[IssueSummary],
     emails_sent: int,
     emails_failed: int,
+    errors: list[str] | None = None,
     redact_pii: bool = False,
     audit_dir: Path | None = None,
 ) -> None:
@@ -65,6 +66,7 @@ def write_audit_record(
         "opportunities_with_issues": len(summaries),
         "emails_sent": emails_sent,
         "emails_failed": emails_failed,
+        "errors": errors or [],
     }
 
     issue_records: list[dict] = []

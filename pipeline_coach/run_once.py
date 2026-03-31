@@ -33,6 +33,19 @@ def run_pipeline_once(
         api_key=app_config.resend_api_key, from_email=app_config.email_from
     )
 
+    # Configure DSPy LM if API key is available
+    if app_config.llm_api_key:
+        import dspy
+        from dspy.adapters import ChatAdapter
+
+        lm = dspy.LM(
+            app_config.llm_model,
+            api_key=app_config.llm_api_key,
+            temperature=0.7,
+            max_tokens=200,
+        )
+        dspy.configure(lm=lm, adapter=ChatAdapter())
+
     run_id = str(uuid.uuid4())[:8]
     today = date.today()
     excluded_stages = rules_config.excluded_stages
@@ -75,6 +88,7 @@ def run_pipeline_once(
         summaries=result["validated_summaries"],
         emails_sent=result["emails_sent"],
         emails_failed=result["emails_failed"],
+        errors=result.get("errors"),
         redact_pii=app_config.audit_redact_pii,
     )
 
