@@ -259,8 +259,9 @@ python -m pipeline_coach.mcp
 
 ### Environment
 
-- **CRM-backed tools** (`analyze_pipeline`, `get_deal_overview`, `get_company_overview`, `get_deal_issues`, `list_stale_deals`) call the same `load_app_config()` path as the main pipeline. You need **`TWENTY_API_URL`**, **`TWENTY_API_KEY`**, **`RESEND_API_KEY`**, and **`EMAIL_FROM`** in the environment when using those tools, even though the MCP server does not send mail. Optional: **`CRM_PUBLIC_URL`** (clickable links in tool output), **`LLM_API_KEY`** / **`LLM_MODEL`** for `use_llm` on supported tools.
+- **CRM-backed tools** (`analyze_pipeline`, `get_deal_overview`, `get_company_overview`, `get_deal_issues`, `list_stale_deals`) need **`TWENTY_API_URL`**, **`TWENTY_API_KEY`**, **`RESEND_API_KEY`**, and **`EMAIL_FROM`** in the environment. Optional: **`LLM_API_KEY`** / **`LLM_MODEL`** for `use_llm` on supported tools.
 - **Audit and rules tools** (`get_audit_history`, `get_run_details`, `get_rules_config`) only need access to `data/audit_log.jsonl` and `config/rules.yaml`; they do not initialize the Twenty client.
+- **CRM links:** Tool output includes clickable links to opportunities. Set **`CRM_PUBLIC_URL`** if your Twenty instance is at a different URL than `TWENTY_API_URL` (e.g., `TWENTY_API_URL=http://twenty:3000` inside Docker but `CRM_PUBLIC_URL=https://crm.yourcompany.com` for browser links).
 
 Reuse your project **`.env`** (see [Quickstart](#quickstart)) in the MCP `env` block or rely on `cwd` + default dotenv loading.
 
@@ -307,8 +308,6 @@ Note: Claude Desktop requires the full path to the Python binary (not just `pyth
   }
 }
 ```
-
-For Docker-style API hostnames, set `TWENTY_API_URL` to the internal URL and add **`CRM_PUBLIC_URL`** with the browser-reachable Twenty base URL for links returned by tools.
 
 ### Resources
 
