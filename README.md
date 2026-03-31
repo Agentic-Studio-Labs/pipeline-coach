@@ -208,11 +208,101 @@ python -m pipeline_coach.smoke_test
 
 **LangGraph orchestration** with three patterns that justify the framework: parallel fan-out (5 concurrent GraphQL fetches), quality gate retry loop (generate action -> validate -> retry or fallback), and conditional escalation routing (critical deals branch to manager path).
 
+Business-friendly one-screen view: [Executive architecture diagram](docs/diagrams/pipeline-coach-architecture-exec.html)
+
+### Architecture ownership map
+
+High-level flow (the table below maps each block to concrete files):
+
+```mermaid
+flowchart TD
+    A[Trigger]
+    B[LangGraph workflow]
+    C[Fetch Twenty data]
+    D[Normalize context]
+    E[Evaluate rules and priority]
+    F[Generate suggested action]
+    G[Quality gate and retry]
+    H[Route and render briefs]
+    I[Send emails]
+    J[Write audit log]
+    K[LLM provider path]
+
+    A --> B
+    B --> C --> D --> E --> F --> G --> H --> I
+    B --> J
+    F --> K
+```
+
+### Responsibility table
+
+| Concern | Primary owner | Key files | Notes |
+|---|---|---|---|
+| Workflow orchestration | LangGraph | `pipeline_coach/workflow/graph.py` | Controls fan-out/fan-in, retry loop, and routing |
+| Action generation | DSPy | `pipeline_coach/coach/actions.py` | Produces suggested action text using LLM when enabled |
+| LLM transport/provider | LiteLLM + provider API | DSPy runtime path | Handles auth, model routing, and provider response format |
+| CRM ingestion | Twenty GraphQL + httpx | `pipeline_coach/ingestion/twenty_client.py` | Read-only pulls from Twenty |
+| Business logic | Rule engine + scoring | `pipeline_coach/hygiene/rules.py`, `pipeline_coach/hygiene/priority.py` | Determines which deals are flagged and severity |
+| Message routing/formatting | Router + brief renderer | `pipeline_coach/delivery/router.py`, `pipeline_coach/coach/brief.py` | Groups by AE/manager and renders plain-text messages |
+| Delivery | Resend client | `pipeline_coach/delivery/email_client.py` | Sends AE and escalation emails |
+| Auditability | Observability logger | `pipeline_coach/observability/logger.py` | Writes run and issue records to JSONL |
+
+### Error ownership example
+
+- If you see a DSPy/adapter warning followed by deterministic fallback, the workflow itself is still running.
+- In that case, the failure usually lives in the LLM transport/provider layer (credentials, model string, provider capabilities), not in LangGraph routing logic.
+
 **Audit trail.** Every run appends JSONL records to `data/audit_log.jsonl` — one run summary and one record per flagged opportunity. View via the dashboard at port 8080 or the CLI (`show_recent`). PII redaction available via `AUDIT_REDACT_PII=true`.
 
 **Custom CRM field.** The seed script creates a `stageChangedAt` DateTime field on the Opportunity object in Twenty. This enables accurate "days in stage" tracking (Twenty's built-in `updatedAt` resets on any field edit, not just stage changes).
 
-**Future.** Slack delivery, CRM write-back (auto-created tasks), DSPy prompt optimization with training examples, and multi-tenant support are designed for but not implemented in v1.
+---
+
+## Why Agentic Patterns
+
+### What they add today
+
+**Quality gate retry loop.** A traditional pipeline either accepts bad LLM output or fails entirely. The generate, validate, retry cycle means the system self-corrects without human intervention. When the LLM produces a vague restatement of the problem instead of an actionable suggestion, the quality gate rejects it and tries again. After 2 retries, it falls back to deterministic templates. This is genuinely better than a single-shot LLM call.
+
+**Parallel data fetch.** Five concurrent GraphQL queries to Twenty run simultaneously via LangGraph's fan-out. For a CRM with hundreds of opportunities, this cuts wall-clock time compared to sequential fetches. The fan-in join merges all data before rule evaluation begins.
+
+**Conditional routing.** Critical deals (high priority + large amount) branch to a separate escalation path alongside the standard AE brief. This pattern is trivial to extend: adding Slack DMs, manager-of-manager escalation, or auto-created CRM tasks is just another conditional edge, not a restructure.
+
+### Where it's honest to say v1 is over-engineered
+
+This is a daily batch job processing tens of deals. A plain Python script calling functions in sequence would work fine for v1. LangGraph adds dependency weight and debugging complexity for what is currently a linear pipeline with one loop and one branch.
+
+The "agent" here isn't autonomous. It doesn't make decisions about what to investigate, doesn't interact with users, doesn't adapt its strategy. It runs the same fixed workflow every time. That's a pipeline, not an agent.
+
+### Where it pays off as you grow
+
+The agentic framework is an investment in the v2/v3 trajectory. The architecture is already in place for these enhancements without requiring a rewrite:
+
+| Enhancement | Agentic pattern used | What changes |
+|---|---|---|
+| **Rep replies "snooze this deal"** | Human-in-the-loop | Email reply webhook triggers a graph interrupt, rep's input feeds back into the next run. LangGraph's checkpoint/resume handles this natively. |
+| **Self-improving suggestions** | Feedback loop + DSPy optimization | Collect which suggestions reps acted on. Feed examples to DSPy's optimizer (MIPROv2, BootstrapFewShot) to auto-tune the prompt. The system gets smarter over time. |
+| **Multi-source reasoning** | Tool-using agent | "This deal looks stale, but the company just raised a Series B" requires chaining CRM data + external signals + LLM reasoning. That's an actual agent, and the LangGraph graph supports adding tool nodes. |
+| **Multiple CRM sources** | Parallel fan-out | Add connectors as new fetch nodes. The join step normalizes everything into the same OpportunityContext. |
+| **Slack delivery** | Conditional routing | Brief rendering already produces structured Brief objects (subject + body). Add a Slack node as another routing branch. |
+| **Auto-created CRM tasks** | CRM write-back node | Add a write node after routing. Pipeline Coach gets its own agent identity in Twenty for attribution. |
+
+### Foundation vs. future
+
+**Foundation (v1, built now):**
+- Deterministic rule engine with YAML config (works without any LLM)
+- Structured data models (OpportunityContext, Issue, IssueSummary)
+- Normalizer as the single mapping layer for CRM schema changes
+- Audit trail for every run (what was scanned, what was flagged, what was recommended)
+- Quality gate pattern (validate output before acting on it)
+
+**Future-ready (architecture supports, not yet implemented):**
+- DSPy prompt optimization (needs training examples from rep feedback)
+- Human-in-the-loop (needs email reply webhook or Slack interactivity)
+- Multi-CRM support (normalizer abstracts CRM-specific fields)
+- Real-time triggers (swap APScheduler for a webhook listener)
+
+The foundation is the part that matters most. If you stripped out LangGraph and DSPy entirely, the rule engine, normalizer, brief renderer, and audit trail would still be valuable. The agentic layer makes the system improvable over time.
 
 ---
 
@@ -224,7 +314,7 @@ python -m pipeline_coach.smoke_test
 | LLM | [DSPy 3.x](https://github.com/stanfordnlp/dspy) via [LiteLLM](https://docs.litellm.ai/) |
 | CRM | [Twenty GraphQL API](https://twenty.com) via [httpx](https://www.python-httpx.org/) |
 | Email | [Resend](https://resend.com) |
-| Models | [Pydantic v2](https://docs.pydantic.dev/) |
+| Data models & validation | [Pydantic v2](https://docs.pydantic.dev/) |
 | Scheduling | [APScheduler](https://apscheduler.readthedocs.io/) |
 | Logging | [structlog](https://www.structlog.org/) |
 | Testing | pytest + pytest-mock |
