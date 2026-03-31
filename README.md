@@ -6,6 +6,30 @@ A daily pipeline hygiene coach for [Twenty CRM](https://twenty.com). Scans open 
 
 ---
 
+## Open Source vs. Enterprise
+
+This repo is the **open-source core** of Pipeline Coach. It includes the full pipeline engine, rule system, LLM-powered action suggestions, email delivery, and audit trail. You can self-host it today with Docker Compose and Twenty CRM.
+
+**Pipeline Coach Enterprise** adds production infrastructure and team-scale features:
+
+| Capability | Open Source (this repo) | Enterprise |
+|---|---|---|
+| Hygiene rules + scoring | 7 configurable rules, YAML-driven | Custom rule builder UI, per-team rule sets |
+| Action suggestions | DSPy with any LLM provider | Managed LLM with prompt optimization from rep feedback |
+| Delivery | Email via Resend | Email + Slack DMs + Microsoft Teams + in-app |
+| CRM support | Twenty CRM | Twenty, Salesforce, HubSpot, Pipedrive |
+| CRM write-back | Read-only | Auto-create tasks, add notes, update stages |
+| Rep feedback loop | — | Reps rate suggestions, closes the loop for LLM improvement |
+| Dashboard | Local audit trail viewer | Hosted dashboard with team analytics, trend tracking |
+| Deployment | Docker Compose, self-hosted | Managed cloud (SOC 2, SSO, data residency) |
+| Scheduling | APScheduler (single process) | Managed scheduler with monitoring and alerting |
+| Observability | JSONL audit log | Metrics, alerting, run history with Datadog/Prometheus |
+| Support | Community (GitHub Issues) | Dedicated onboarding, SLAs |
+
+Interested in Enterprise? Reach out at **hello@agenticstudiolabs.com**
+
+---
+
 ## Quickstart
 
 ```bash
