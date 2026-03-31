@@ -60,8 +60,7 @@ def fetch_tasks(state: PipelineState, *, twenty_client: Any) -> dict:
     try:
         data = twenty_client.fetch_all(
             "tasks",
-            "id createdAt updatedAt status completedAt "
-            "taskTargets { edges { node { targetOpportunityId } } }",
+            "id createdAt updatedAt status taskTargets { edges { node { targetOpportunityId } } }",
         )
         return {"tasks": data}
     except Exception as exc:

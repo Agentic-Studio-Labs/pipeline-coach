@@ -49,8 +49,7 @@ _COMPANY_FIELDS = "id name"
 _PERSON_FIELDS = "id name { firstName lastName } emails { primaryEmail } companyId jobTitle"
 _MEMBER_FIELDS = "id name { firstName lastName } userEmail"
 _TASK_FIELDS = (
-    "id createdAt updatedAt status completedAt "
-    "taskTargets { edges { node { targetOpportunityId } } }"
+    "id createdAt updatedAt status taskTargets { edges { node { targetOpportunityId } } }"
 )
 
 
