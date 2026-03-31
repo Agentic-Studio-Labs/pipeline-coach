@@ -77,6 +77,19 @@ services:
       - ./data:/app/data
     command: ["python", "-m", "pipeline_coach.dashboard", "--port", "8080", "--audit-dir", "/app/data"]
 
+  pipeline-coach-mcp:
+    build: .
+    depends_on:
+      twenty:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    command: ["python", "-m", "pipeline_coach.mcp"]
+    stdin_open: true
+
   pipeline-coach-smoke:
     build: .
     depends_on:

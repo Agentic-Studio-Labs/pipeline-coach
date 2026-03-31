@@ -200,6 +200,7 @@ For Docker Compose, `TWENTY_APP_SECRET` is also needed (auto-generated with a de
 | `twenty-worker`            | —    | Twenty background worker |
 | `pipeline-coach`           | —    | Daily scheduler          |
 | `pipeline-coach-dashboard` | 8080 | Audit trail web UI       |
+| `pipeline-coach-mcp`       | —    | MCP server for AI clients |
 | `pipeline-coach-smoke`     | —    | One-shot smoke test      |
 
 
@@ -234,6 +235,53 @@ The **smoke test** verifies real connectivity:
 python -m pipeline_coach.smoke_test
 # or: docker compose run --rm pipeline-coach-smoke
 ```
+
+---
+
+## MCP Server
+
+Pipeline Coach includes an MCP (Model Context Protocol) server for querying pipeline intelligence from AI clients like Claude Code and Cursor.
+
+### Setup
+
+```bash
+pip install -e ".[mcp]"
+```
+
+### Claude Code
+
+Add to `.mcp.json` in the project root (for Cursor, use `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "pipeline-coach": {
+      "command": "python",
+      "args": ["-m", "pipeline_coach.mcp"],
+      "cwd": "/path/to/pipeline-coach",
+      "env": {
+        "TWENTY_API_URL": "http://localhost:3000",
+        "TWENTY_API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `analyze_pipeline` | Run full hygiene analysis on all open opportunities |
+| `get_deal_overview` | Deep dive on a single opportunity with issues and suggested action |
+| `get_company_overview` | All deals for a company with health status and pipeline value |
+| `get_deal_issues` | Check a single deal for issues (lightweight, no action generation) |
+| `list_stale_deals` | Deals past their stale-in-stage threshold |
+| `get_audit_history` | Recent pipeline run summaries from audit log |
+| `get_run_details` | Full details for a specific pipeline run |
+| `get_rules_config` | Current rule thresholds, severities, and excluded stages |
+
+All tools are read-only and annotated with `readOnlyHint: true`.
 
 ---
 
