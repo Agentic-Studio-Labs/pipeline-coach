@@ -52,6 +52,7 @@ def run_pipeline_once(
 
     logger.info("pipeline_start", run_id=run_id, today=str(today))
 
+    crm_url = app_config.crm_public_url or app_config.twenty_api_url
     graph = build_graph(
         twenty_client=twenty_client,
         email_client=email_client,
@@ -60,7 +61,7 @@ def run_pipeline_once(
         use_llm=app_config.llm_api_key is not None,
         today=today,
         excluded_stages=excluded_stages,
-        crm_url=app_config.twenty_api_url,
+        crm_url=crm_url,
     )
 
     initial_state = {

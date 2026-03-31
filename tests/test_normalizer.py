@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 import pytest
+
 from pipeline_coach.ingestion.normalizer import normalize_opportunities
 
 # ---------------------------------------------------------------------------
@@ -226,6 +227,35 @@ def test_last_activity_at_from_tasks(
     )
     opp1 = next(o for o in result if o.id == "opp-1")
     assert opp1.last_activity_at == datetime(2026, 3, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def test_last_activity_falls_back_to_updated_at_without_completed_at(
+    raw_opportunities: list[dict],
+    raw_companies: list[dict],
+    raw_people: list[dict],
+    raw_workspace_members: list[dict],
+) -> None:
+    tasks_open = [
+        {
+            "id": "task-open",
+            "createdAt": "2026-03-10T08:00:00Z",
+            "updatedAt": "2026-03-26T15:00:00Z",
+            "status": "TODO",
+            "taskTargets": {
+                "edges": [{"node": {"targetOpportunityId": "opp-1"}}],
+            },
+        }
+    ]
+    result = normalize_opportunities(
+        opportunities=raw_opportunities,
+        companies=raw_companies,
+        people=raw_people,
+        workspace_members=raw_workspace_members,
+        tasks=tasks_open,
+        today=TODAY,
+    )
+    opp1 = next(o for o in result if o.id == "opp-1")
+    assert opp1.last_activity_at == datetime(2026, 3, 26, 15, 0, 0, tzinfo=timezone.utc)
 
 
 def test_no_tasks_gives_none_activity(

@@ -4,6 +4,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+
 from pipeline_coach.config import (
     AppConfig,
     EscalationConfig,
@@ -211,6 +212,7 @@ def test_load_app_config_optional_defaults(monkeypatch: pytest.MonkeyPatch) -> N
     for key in (
         "LLM_API_KEY",
         "LLM_MODEL",
+        "CRM_PUBLIC_URL",
         "RUN_AT_HOUR",
         "AUDIT_REDACT_PII",
         "AUDIT_LOG_RETENTION_DAYS",
@@ -218,10 +220,19 @@ def test_load_app_config_optional_defaults(monkeypatch: pytest.MonkeyPatch) -> N
         monkeypatch.delenv(key, raising=False)
     cfg = load_app_config()
     assert cfg.llm_api_key is None
+    assert cfg.crm_public_url is None
     assert cfg.llm_model == "openai/gpt-4o-mini"
     assert cfg.run_at_hour == 8
     assert cfg.audit_redact_pii is False
     assert cfg.audit_log_retention_days == 30
+
+
+def test_load_app_config_crm_public_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    for k, v in REQUIRED_ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("CRM_PUBLIC_URL", "https://crm.example.com")
+    cfg = load_app_config()
+    assert cfg.crm_public_url == "https://crm.example.com"
 
 
 def test_load_app_config_missing_required_raises(monkeypatch: pytest.MonkeyPatch) -> None:

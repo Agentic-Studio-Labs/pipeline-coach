@@ -16,6 +16,18 @@ def _parse_dt(raw: str | None) -> datetime | None:
     return dt
 
 
+def _task_activity_at(task: dict) -> datetime | None:
+    """Best timestamp for opportunity activity from a task row (GraphQL shape)."""
+    for key in ("completedAt", "updatedAt", "createdAt"):
+        raw = task.get(key)
+        if not raw:
+            continue
+        dt = _parse_dt(raw)
+        if dt is not None:
+            return dt
+    return None
+
+
 def _parse_date(raw: str | None) -> date | None:
     dt = _parse_dt(raw) if raw and "T" in raw else None
     if dt is not None:
@@ -71,8 +83,7 @@ def normalize_opportunities(
 
     opp_latest_activity: dict[str, datetime] = {}
     for task in tasks:
-        completed_raw = task.get("completedAt")
-        task_dt = _parse_dt(completed_raw)
+        task_dt = _task_activity_at(task)
         if task_dt is None:
             continue
         edges = task.get("taskTargets", {}).get("edges", [])

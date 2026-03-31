@@ -134,6 +134,17 @@ def check_schema(twenty_client: Any) -> bool:
     except Exception as exc:
         all_ok &= _check("workspaceMembers", False, str(exc))
 
+    # tasks — must match fetch_tasks + normalizer (activity timestamps + targets)
+    try:
+        tasks = twenty_client.fetch_all(
+            "tasks",
+            "id createdAt updatedAt status completedAt "
+            "taskTargets { edges { node { targetOpportunityId } } }",
+        )
+        all_ok &= _check("tasks (full field set)", True, f"count={len(tasks)}")
+    except Exception as exc:
+        all_ok &= _check("tasks (full field set)", False, str(exc))
+
     return all_ok
 
 

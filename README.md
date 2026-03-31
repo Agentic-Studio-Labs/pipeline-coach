@@ -74,7 +74,7 @@ docker compose run --rm pipeline-coach-smoke                  # verify connectiv
 docker compose run --rm pipeline-coach python -m pipeline_coach --once  # run pipeline
 ```
 
-Note: when running inside Docker, the Twenty URL is `http://twenty:3000` (set in `.env.example`). When running locally outside Docker, use `http://localhost:3000`.
+Note: when running inside Docker, set `TWENTY_API_URL=http://twenty:3000` for API calls. For emails, set `CRM_PUBLIC_URL` to a URL recipients can open (often `http://localhost:3000` during local demos, or your public Twenty hostname in production). When running the pipeline on the host against local Twenty, `http://localhost:3000` alone is usually enough.
 
 ---
 
@@ -82,12 +82,12 @@ Note: when running inside Docker, the Twenty URL is `http://twenty:3000` (set in
 
 Pipeline Coach runs as a [LangGraph](https://github.com/langchain-ai/langgraph) state machine:
 
-1. **Parallel fetch** — Five nodes concurrently fetch companies, people, opportunities, tasks, and workspace members from Twenty's GraphQL API.
-2. **Normalize** — Raw records are joined into `OpportunityContext` objects: owner name/email (from workspace members), company name, last activity date (from linked tasks), days in stage (from `stageChangedAt` custom field).
+1. **Parallel fetch** — LangGraph fans out five fetch nodes (companies, people, opportunities, tasks, workspace members) so the workflow stage runs them as parallel branches before joining; each branch issues GraphQL via a shared httpx client.
+2. **Normalize** — Raw records are joined into `OpportunityContext` objects: owner name/email (from workspace members), company name, last task touch on the deal (prefer `completedAt`, else `updatedAt` / `createdAt` on linked tasks), days in stage (from `stageChangedAt` or `updatedAt`).
 3. **Rule evaluation** — Each opportunity is checked against 7 configurable hygiene rules. Terminal stages (e.g., `CUSTOMER`) are filtered out.
 4. **Action generation** — [DSPy](https://dspy.ai) generates a context-aware suggested action per deal via LLM. Without an LLM key, deterministic templates provide fallback actions.
 5. **Quality gate** — Validates each suggested action is non-empty, contains an action verb, and isn't just restating the issue. LLM actions retry up to 2x before falling back to templates.
-6. **Route and deliver** — Deals are grouped by AE. High-priority deals above the amount threshold are escalated to managers. Emails are sent via [Resend](https://resend.com) with deep links to each opportunity in Twenty.
+6. **Route and deliver** — Deals are grouped by AE. Deals with **highest issue severity `high`** and amount at or above the escalation threshold go to managers as well as the AE. Emails are sent via [Resend](https://resend.com) with deep links to each opportunity (`CRM_PUBLIC_URL` if set, otherwise `TWENTY_API_URL`).
 
 ---
 
@@ -150,7 +150,7 @@ escalation:
   overrides:
     ae1@yourcompany.com: manager-a@yourcompany.com
     ae2@yourcompany.com: manager-b@yourcompany.com
-  critical_amount_threshold: 50000   # high priority + amount >= this triggers escalation
+  critical_amount_threshold: 50000   # max severity issue is high + amount >= this → manager copy
 ```
 
 ### `.env`
@@ -158,7 +158,8 @@ escalation:
 
 | Variable                   | Required | Default              | Description                                                                                        |
 | -------------------------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------- |
-| `TWENTY_API_URL`           | Yes      | —                    | Twenty CRM base URL (`http://localhost:3000` locally, `http://twenty:3000` in Docker)              |
+| `TWENTY_API_URL`           | Yes      | —                    | Twenty CRM base URL for API calls (`http://localhost:3000` locally, `http://twenty:3000` in Docker) |
+| `CRM_PUBLIC_URL`           | No       | —                    | Browser URL for email deep links; defaults to `TWENTY_API_URL`. Set when the API host is not clickable (e.g. Docker service name). |
 | `TWENTY_API_KEY`           | Yes      | —                    | Twenty API key (Settings > APIs & Webhooks)                                                        |
 | `RESEND_API_KEY`           | Yes      | —                    | [Resend](https://resend.com) API key                                                               |
 | `EMAIL_FROM`               | Yes      | —                    | Sender address (must be verified domain in Resend)                                                 |
@@ -166,7 +167,7 @@ escalation:
 | `LLM_MODEL`                | No       | `openai/gpt-4o-mini` | Model string in `provider/model` format                                                            |
 | `RUN_AT_HOUR`              | No       | `8`                  | Hour (0-23) for the daily scheduler                                                                |
 | `AUDIT_REDACT_PII`         | No       | `false`              | Redact owner emails/names in audit log                                                             |
-| `AUDIT_LOG_RETENTION_DAYS` | No       | `30`                 | Days to retain audit records                                                                       |
+| `AUDIT_LOG_RETENTION_DAYS` | No       | `30`                 | Reserved for future log rotation; OSS does not prune `data/audit_log.jsonl` automatically yet      |
 
 
 For Docker Compose, `TWENTY_APP_SECRET` is also needed (auto-generated with a default in docker-compose.yml).
@@ -225,7 +226,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**139 unit tests** covering rule evaluation, priority scoring, normalizer (GraphQL response mapping), brief rendering, escalation routing, quality gate, audit logging, and workflow graph nodes. External services (Twenty, Resend, LLM) are mocked.
+**147 unit tests** covering rule evaluation, priority scoring, normalizer (GraphQL response mapping), brief rendering, escalation routing, quality gate, audit logging, and workflow graph nodes. External services (Twenty, Resend, LLM) are mocked.
 
 The **smoke test** verifies real connectivity:
 
@@ -240,11 +241,11 @@ python -m pipeline_coach.smoke_test
 
 **Single process, read-only.** Pipeline Coach never writes to Twenty CRM. All output is delivered as email suggestions for humans to act on.
 
-**LangGraph orchestration** with three patterns that justify the framework: parallel fan-out (5 concurrent GraphQL fetches), quality gate retry loop (generate action -> validate -> retry or fallback), and conditional escalation routing (critical deals branch to manager path).
+**LangGraph orchestration** with three patterns that justify the framework: parallel fan-out for the fetch stage, quality gate retry loop (generate action → validate → retry or fallback), and conditional escalation routing (critical deals branch to manager path).
 
-Pipeline Coach Architecture
+![Executive architecture overview](docs/diagrams/pipeline-coach-architecture-exec.png)
 
-[Full technical diagram (HTML)](docs/diagrams/pipeline-coach-architecture.html) | [Technical diagram (PNG)](docs/diagrams/pipeline-coach-architecture.png)
+[Executive diagram (PNG)](docs/diagrams/pipeline-coach-architecture-exec.png) · [Full technical diagram (HTML)](docs/diagrams/pipeline-coach-architecture.html) · [Technical diagram (PNG)](docs/diagrams/pipeline-coach-architecture.png)
 
 ### Architecture ownership map
 
@@ -293,7 +294,7 @@ High-level flow (the table below maps each block to concrete files):
 
 **Quality gate with self-correction.** A traditional pipeline either accepts bad LLM output or fails. The generate, validate, retry cycle means the system self-corrects per opportunity. After 2 retries, it falls back to deterministic templates. The pipeline always produces output.
 
-**Parallel data ingestion.** Five concurrent GraphQL fetches run simultaneously via LangGraph fan-out. For a CRM with hundreds of opportunities, this cuts wall-clock time compared to sequential fetches.
+**Parallel data ingestion.** Five fetch nodes run in a LangGraph fan-out before join, reducing wall-clock time versus a single-threaded sequence of queries (exact overlap depends on runtime and sync I/O).
 
 **Conditional escalation routing.** Critical deals (high priority + large amount) branch to a separate manager escalation path alongside the standard AE brief. Adding a new routing branch is one conditional edge, not a restructure.
 

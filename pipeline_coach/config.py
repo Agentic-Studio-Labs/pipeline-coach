@@ -92,6 +92,7 @@ class AppConfig:
     twenty_api_key: str
     resend_api_key: str
     email_from: str
+    crm_public_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str = "openai/gpt-4o-mini"
     run_at_hour: int = 8
@@ -106,11 +107,13 @@ class AppConfig:
 
 def load_app_config() -> AppConfig:
     """Read AppConfig from environment variables. Raises KeyError for missing required vars."""
+    public = os.environ.get("CRM_PUBLIC_URL")
     return AppConfig(
         twenty_api_url=os.environ["TWENTY_API_URL"],
         twenty_api_key=os.environ["TWENTY_API_KEY"],
         resend_api_key=os.environ["RESEND_API_KEY"],
         email_from=os.environ["EMAIL_FROM"],
+        crm_public_url=public if public else None,
         llm_api_key=os.environ.get("LLM_API_KEY"),
         llm_model=os.environ.get("LLM_MODEL", "openai/gpt-4o-mini"),
         run_at_hour=int(os.environ.get("RUN_AT_HOUR", "8")),

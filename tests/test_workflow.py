@@ -101,7 +101,9 @@ def _mock_fetch(collection: str, fields: str) -> list[dict]:
             {
                 "id": "t1",
                 "createdAt": "2026-03-12T10:00:00Z",
+                "updatedAt": "2026-03-12T10:00:00Z",
                 "status": "DONE",
+                "completedAt": "2026-03-12T10:00:00Z",
                 "taskTargets": {"edges": [{"node": {"opportunityId": "opp-1"}}]},
             }
         ],

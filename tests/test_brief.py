@@ -147,6 +147,10 @@ class TestRenderAeBrief:
         result = render_ae_brief("Alex", summaries, today=TODAY)
         assert "Pipeline Coach" in result.body
 
+    def test_body_uses_crm_public_url_in_deep_links(self, summaries: list[IssueSummary]) -> None:
+        result = render_ae_brief("Alex", summaries, today=TODAY, crm_url="https://app.example.com")
+        assert "https://app.example.com/object/opportunity/opp-1" in result.body
+
     def test_empty_summaries(self) -> None:
         result = render_ae_brief("Alex", [], today=TODAY)
         assert isinstance(result, Brief)
