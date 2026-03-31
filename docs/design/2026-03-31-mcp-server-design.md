@@ -24,7 +24,7 @@ This is the **open-source** MCP server. It uses stdio transport and connects to 
 | Location | In-repo subpackage `pipeline_coach/mcp/` | Shares internal types directly, ships as part of same package |
 | Transport | stdio | Standard for local MCP servers; Claude Code, Cursor, Claude Desktop all support it |
 | Auth | None (stdio) | Parent process owns the connection; no auth needed for local use |
-| Data freshness | Always live from Twenty | No cache layer in v1; rate limit sufficient for interactive use |
+| Data freshness | Always live from Twenty | No cache layer in v1; rate limit sufficient for interactive use (see Validated Against for caveats) |
 | LLM in tools | Opt-in per call | `analyze_pipeline` and `get_deal_overview` accept `use_llm` parameter, default false |
 | Protocol version | 2025-03-26+ | Use tool annotations (readOnlyHint), structured tool output |
 | SDK | `mcp` Python SDK | Official MCP Python SDK, handles stdio transport and protocol |
@@ -53,7 +53,7 @@ Run full hygiene analysis on all open opportunities.
 - `use_llm` (boolean, optional, default: false) — generate LLM-powered action suggestions instead of deterministic templates
 
 **Returns:** Structured JSON with:
-- `run_id`: string
+- `run_id`: string (MCP-specific, format `mcp-{uuid[:8]}` to distinguish from scheduled run IDs)
 - `total_opportunities`: number (scanned, excluding terminal stages)
 - `issues_found`: number
 - `summaries`: array of issue summaries, each with:
@@ -82,7 +82,7 @@ Run full hygiene analysis on all open opportunities.
       ],
       "suggested_action": "Update the close date — the current one has passed.",
       "action_rationale": "Past close dates reduce forecast accuracy and hide true pipeline health.",
-      "crm_link": "http://localhost:3000/object/opportunity/abc-123"
+      "crm_link": "http://localhost:3000/object/opportunity/abc-123"  // uses CRM_PUBLIC_URL if set
     }
   ]
 }
@@ -280,7 +280,7 @@ All tools that return `crm_link` use the same logic as `run_once.py`: prefer `CR
 
 ### Fuzzy matching
 
-`get_deal_overview`, `get_deal_issues`, `get_company_overview`, and `list_stale_deals` (for company filtering, if added) accept name queries. Matching strategy:
+`get_deal_overview`, `get_deal_issues`, and `get_company_overview` accept name queries. Matching strategy:
 1. Exact ID match (if query looks like a UUID)
 2. Case-insensitive exact name match
 3. Case-insensitive substring match
@@ -316,7 +316,7 @@ python -m pipeline_coach.mcp
 
 ## Dependencies
 
-Add `mcp` as an optional extra to keep the core install lighter:
+Add `mcp` as an optional extra to keep the core install lighter. Merge into the existing `[project.optional-dependencies]` table in `pyproject.toml` — do not drop the existing `dev` extra.
 
 ```toml
 [project.optional-dependencies]
