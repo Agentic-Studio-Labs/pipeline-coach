@@ -12,21 +12,23 @@ This repo is the **open-source core** of Pipeline Coach. It includes the full pi
 
 **Pipeline Coach Enterprise** adds production infrastructure and team-scale features:
 
-| Capability | Open Source (this repo) | Enterprise |
-|---|---|---|
-| Hygiene rules + scoring | 7 configurable rules, YAML-driven | Custom rule builder UI, per-team rule sets |
-| Action suggestions | DSPy with any LLM provider | Managed LLM with prompt optimization from rep feedback |
-| Delivery | Email via Resend | Email + Slack DMs + Microsoft Teams + in-app |
-| CRM support | Twenty CRM | Twenty, Salesforce, HubSpot, Pipedrive |
-| CRM write-back | Read-only | Auto-create tasks, add notes, update stages |
-| Rep feedback loop | — | Reps rate suggestions, closes the loop for LLM improvement |
-| Dashboard | Local audit trail viewer | Hosted dashboard with team analytics, trend tracking |
-| Deployment | Docker Compose, self-hosted | Managed cloud (SOC 2, SSO, data residency) |
-| Scheduling | APScheduler (single process) | Managed scheduler with monitoring and alerting |
-| Observability | JSONL audit log | Metrics, alerting, run history with Datadog/Prometheus |
-| Support | Community (GitHub Issues) | Dedicated onboarding, SLAs |
 
-Interested in Enterprise? Reach out at **hello@agenticstudiolabs.com**
+| Capability              | Open Source (this repo)           | Enterprise                                                 |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------- |
+| Hygiene rules + scoring | 7 configurable rules, YAML-driven | Custom rule builder UI, per-team rule sets                 |
+| Action suggestions      | DSPy with any LLM provider        | Managed LLM with prompt optimization from rep feedback     |
+| Delivery                | Email via Resend                  | Email + Slack DMs + Microsoft Teams + in-app               |
+| CRM support             | Twenty CRM                        | Twenty, Salesforce, HubSpot, Pipedrive                     |
+| CRM write-back          | Read-only                         | Auto-create tasks, add notes, update stages                |
+| Rep feedback loop       | —                                 | Reps rate suggestions, closes the loop for LLM improvement |
+| Dashboard               | Local audit trail viewer          | Hosted dashboard with team analytics, trend tracking       |
+| Deployment              | Docker Compose, self-hosted       | Managed cloud (SOC 2, SSO, data residency)                 |
+| Scheduling              | APScheduler (single process)      | Managed scheduler with monitoring and alerting             |
+| Observability           | JSONL audit log                   | Metrics, alerting, run history with Datadog/Prometheus     |
+| Support                 | Community (GitHub Issues)         | Dedicated onboarding, SLAs                                 |
+
+
+Interested in Enterprise? Reach out at **[hello@agenticstudiolabs.com](mailto:hello@agenticstudiolabs.com)**
 
 ---
 
@@ -239,7 +241,7 @@ python -m pipeline_coach.smoke_test
 
 **LangGraph orchestration** with three patterns that justify the framework: parallel fan-out (5 concurrent GraphQL fetches), quality gate retry loop (generate action -> validate -> retry or fallback), and conditional escalation routing (critical deals branch to manager path).
 
-![Pipeline Coach Architecture](docs/diagrams/pipeline-coach-architecture-exec.png)
+Pipeline Coach Architecture
 
 [Full technical diagram (HTML)](docs/diagrams/pipeline-coach-architecture.html) | [Technical diagram (PNG)](docs/diagrams/pipeline-coach-architecture.png)
 
@@ -274,9 +276,11 @@ High-level flow (the table below maps each block to concrete files):
 
 **Audit trail.** Every run appends JSONL records to `data/audit_log.jsonl` — one run summary and one record per flagged opportunity. View via the dashboard at port 8080 or the CLI (`show_recent`). PII redaction available via `AUDIT_REDACT_PII=true`.
 
+
 | Audit Trail | System Errors |
 |---|---|
 | ![Audit Trail](docs/screenshots/dashboard-audit-trail.png) | ![System Errors](docs/screenshots/dashboard-errors.png) |
+
 
 **Custom CRM field.** The seed script creates a `stageChangedAt` DateTime field on the Opportunity object in Twenty. This enables accurate "days in stage" tracking (Twenty's built-in `updatedAt` resets on any field edit, not just stage changes).
 
@@ -302,15 +306,17 @@ High-level flow (the table below maps each block to concrete files):
 
 The open-source core establishes patterns that Pipeline Coach Enterprise builds on:
 
-| Pattern in OSS core | What it enables in Enterprise |
-|---|---|
-| Quality gate + deterministic fallback | Prompt optimization from rep feedback (DSPy optimizer with training examples) |
-| LangGraph fan-out/fan-in | Multi-CRM connectors as parallel fetch nodes (Salesforce, HubSpot, Pipedrive) |
-| Conditional routing node | Slack DMs, Teams, in-app notifications as additional delivery branches |
-| Normalizer boundary (`OpportunityContext`) | CRM-agnostic rule engine — same rules work across any CRM |
-| Structured `Brief` output | CRM write-back (auto-created tasks, notes) as another output node |
-| Audit trail per run | Team analytics dashboard, trend tracking, compliance reporting |
-| LangGraph checkpointing (roadmap) | Human-in-the-loop — reps respond to briefs, feedback feeds next run |
+
+| Pattern in OSS core                        | What it enables in Enterprise                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| Quality gate + deterministic fallback      | Prompt optimization from rep feedback (DSPy optimizer with training examples) |
+| LangGraph fan-out/fan-in                   | Multi-CRM connectors as parallel fetch nodes (Salesforce, HubSpot, Pipedrive) |
+| Conditional routing node                   | Slack DMs, Teams, in-app notifications as additional delivery branches        |
+| Normalizer boundary (`OpportunityContext`) | CRM-agnostic rule engine — same rules work across any CRM                     |
+| Structured `Brief` output                  | CRM write-back (auto-created tasks, notes) as another output node             |
+| Audit trail per run                        | Team analytics dashboard, trend tracking, compliance reporting                |
+| LangGraph checkpointing (roadmap)          | Human-in-the-loop — reps respond to briefs, feedback feeds next run           |
+
 
 ### Foundation first
 
