@@ -223,11 +223,13 @@ The script also auto-detects the first workspace member and assigns them as the 
 ## Testing
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,mcp]"
 pytest
 ```
 
-**147 unit tests** covering rule evaluation, priority scoring, normalizer (GraphQL response mapping), brief rendering, escalation routing, quality gate, audit logging, and workflow graph nodes. External services (Twenty, Resend, LLM) are mocked.
+Use `.[dev]` if you only need core tests and linters; add `mcp` so you can import and run `python -m pipeline_coach.mcp` locally (`mcp` is also required for that command).
+
+**185 unit tests** covering rule evaluation, priority scoring, normalizer (GraphQL response mapping), brief rendering, escalation routing, quality gate, audit logging, workflow graph nodes, and **MCP helpers/tools**. External services (Twenty, Resend, LLM) are mocked.
 
 The **smoke test** verifies real connectivity:
 
@@ -240,17 +242,31 @@ python -m pipeline_coach.smoke_test
 
 ## MCP Server
 
-Pipeline Coach includes an MCP (Model Context Protocol) server for querying pipeline intelligence from AI clients like Claude Code and Cursor.
+Pipeline Coach includes an MCP (Model Context Protocol) server for querying pipeline intelligence from AI clients like Claude Code and Cursor. Design detail: [`docs/design/2026-03-31-mcp-server-design.md`](docs/design/2026-03-31-mcp-server-design.md).
 
 ### Setup
 
 ```bash
 pip install -e ".[mcp]"
+# or with dev dependencies: pip install -e ".[dev,mcp]"
 ```
 
-### Claude Code
+Run manually (stdio):
 
-Add to `.mcp.json` in the project root (for Cursor, use `.cursor/mcp.json`):
+```bash
+python -m pipeline_coach.mcp
+```
+
+### Environment
+
+- **CRM-backed tools** (`analyze_pipeline`, `get_deal_overview`, `get_company_overview`, `get_deal_issues`, `list_stale_deals`) call the same `load_app_config()` path as the main pipeline. You need **`TWENTY_API_URL`**, **`TWENTY_API_KEY`**, **`RESEND_API_KEY`**, and **`EMAIL_FROM`** in the environment when using those tools, even though the MCP server does not send mail. Optional: **`CRM_PUBLIC_URL`** (clickable links in tool output), **`LLM_API_KEY`** / **`LLM_MODEL`** for `use_llm` on supported tools.
+- **Audit and rules tools** (`get_audit_history`, `get_run_details`, `get_rules_config`) only need access to `data/audit_log.jsonl` and `config/rules.yaml`; they do not initialize the Twenty client.
+
+Reuse your project **`.env`** (see [Quickstart](#quickstart)) in the MCP `env` block or rely on `cwd` + default dotenv loading.
+
+### Client configuration
+
+Add to `.mcp.json` in the project root (for **Cursor**, use [`.cursor/mcp.json`](https://docs.cursor.com/context/mcp) or the editor’s MCP UI):
 
 ```json
 {
@@ -261,12 +277,20 @@ Add to `.mcp.json` in the project root (for Cursor, use `.cursor/mcp.json`):
       "cwd": "/path/to/pipeline-coach",
       "env": {
         "TWENTY_API_URL": "http://localhost:3000",
-        "TWENTY_API_KEY": "your-key"
+        "TWENTY_API_KEY": "your-key",
+        "RESEND_API_KEY": "your-resend-key",
+        "EMAIL_FROM": "pipeline-coach@yourdomain.com"
       }
     }
   }
 }
 ```
+
+For Docker-style API hostnames, set `TWENTY_API_URL` to the internal URL and add **`CRM_PUBLIC_URL`** with the browser-reachable Twenty base URL for links returned by tools.
+
+### Resources
+
+Read-only resources (custom scheme): `pipelinecoach://config/rules`, `pipelinecoach://config/escalation`, `pipelinecoach://audit/latest`.
 
 ### Available tools
 
@@ -281,7 +305,7 @@ Add to `.mcp.json` in the project root (for Cursor, use `.cursor/mcp.json`):
 | `get_run_details` | Full details for a specific pipeline run |
 | `get_rules_config` | Current rule thresholds, severities, and excluded stages |
 
-All tools are read-only and annotated with `readOnlyHint: true`.
+All tools are read-only and annotated with `readOnlyHint: true` and `idempotentHint: true`.
 
 ---
 
