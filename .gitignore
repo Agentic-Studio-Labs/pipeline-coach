@@ -9,3 +9,4 @@ data/
 scripts/seed_output.json
 .venv/
 uv.lock
+.DS_Store
