@@ -18,11 +18,18 @@ def _format_date(d: date | None, today: date) -> str:
     return f"{d}{suffix}"
 
 
+def _opp_link(crm_url: str | None, opp_id: str) -> str:
+    if not crm_url:
+        return ""
+    return f"\n   View: {crm_url.rstrip('/')}/object/opportunity/{opp_id}"
+
+
 def render_ae_brief(
     owner_name: str | None,
     summaries: list[IssueSummary],
     *,
     today: date | None = None,
+    crm_url: str | None = None,
 ) -> Brief:
     today = today or date.today()
     greeting = f"Hi {owner_name}" if owner_name else "Hi"
@@ -47,6 +54,9 @@ def render_ae_brief(
             lines.append(f"   - {issue.message}")
         if s.suggested_action:
             lines.append(f"   Suggested action: {s.suggested_action}")
+        link = _opp_link(crm_url, s.opportunity_id)
+        if link:
+            lines.append(link)
         lines.append("")
 
     lines.append("Pipeline Coach")
@@ -64,6 +74,7 @@ def render_escalation_brief(
     ae_email: str,
     summaries: list[IssueSummary],
     today: date | None = None,
+    crm_url: str | None = None,
 ) -> Brief:
     today = today or date.today()
     n = len(summaries)
@@ -81,6 +92,9 @@ def render_escalation_brief(
         for issue in s.issues:
             lines.append(f"   - {issue.message}")
         lines.append(f"   AE: {ae_name} <{ae_email}>")
+        link = _opp_link(crm_url, s.opportunity_id)
+        if link:
+            lines.append(link)
         lines.append("")
 
     lines.append("Pipeline Coach")

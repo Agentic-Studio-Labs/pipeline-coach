@@ -1,14 +1,13 @@
 excluded_stages:
-  - Closed Won
-  - Closed Lost
+  - CUSTOMER
 
 rules:
   stale_in_stage:
     enabled: true
     default_days: 14
     by_stage:
-      Qualification: 21
-      Negotiation: 7
+      SCREENING: 21
+      PROPOSAL: 7
     severity: medium
 
   no_recent_activity:
@@ -37,6 +36,5 @@ rules:
   missing_decision_maker:
     enabled: true
     by_stage:
-      Proposal: true
-      Negotiation: true
+      PROPOSAL: true
     severity: low

@@ -77,7 +77,8 @@ def normalize_opportunities(
             continue
         edges = task.get("taskTargets", {}).get("edges", [])
         for edge in edges:
-            opp_id = edge.get("node", {}).get("opportunityId")
+            node = edge.get("node", {})
+            opp_id = node.get("targetOpportunityId") or node.get("opportunityId")
             if not opp_id:
                 continue
             existing = opp_latest_activity.get(opp_id)

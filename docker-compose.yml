@@ -1,30 +1,62 @@
 services:
   twenty-db:
-    image: postgres:15
+    image: postgres:16
     volumes:
       - twenty_pg_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: twenty
-      POSTGRES_USER: twenty
-      POSTGRES_PASSWORD: twenty
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d default"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  twenty-redis:
+    image: redis:latest
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   twenty:
-    image: twentyhq/twenty:latest
+    image: twentycrm/twenty:latest
     depends_on:
       twenty-db:
-        condition: service_started
+        condition: service_healthy
+      twenty-redis:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://twenty:twenty@twenty-db:5432/twenty
       SERVER_URL: http://localhost:3000
-      FRONT_BASE_URL: http://localhost:3000
+      PG_DATABASE_URL: postgres://postgres:postgres@twenty-db:5432/default
+      REDIS_URL: redis://twenty-redis:6379
+      APP_SECRET: ${TWENTY_APP_SECRET:-local-dev-secret-replace-me}
+      STORAGE_TYPE: local
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 60s
+      retries: 18
+      start_period: 90s
+
+  twenty-worker:
+    image: twentycrm/twenty:latest
+    depends_on:
+      twenty:
+        condition: service_healthy
+    command: ["yarn", "worker:prod"]
+    environment:
+      SERVER_URL: http://localhost:3000
+      PG_DATABASE_URL: postgres://postgres:postgres@twenty-db:5432/default
+      REDIS_URL: redis://twenty-redis:6379
+      APP_SECRET: ${TWENTY_APP_SECRET:-local-dev-secret-replace-me}
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+      STORAGE_TYPE: local
 
   pipeline-coach:
     build: .

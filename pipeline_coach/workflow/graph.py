@@ -60,7 +60,7 @@ def fetch_tasks(state: PipelineState, *, twenty_client: Any) -> dict:
     try:
         data = twenty_client.fetch_all(
             "tasks",
-            "id createdAt status taskTargets { edges { node { opportunityId } } }",
+            "id createdAt status taskTargets { edges { node { targetOpportunityId } } }",
         )
         return {"tasks": data}
     except Exception as exc:
@@ -179,13 +179,19 @@ def route_by_severity(
     *,
     escalation_config: EscalationConfig,
     today: date,
+    crm_url: str | None = None,
 ) -> dict:
     routing = route_summaries(state["validated_summaries"], escalation_config)
 
     ae_briefs: dict[str, Any] = {}
     for owner_email, summaries in routing.ae_briefs.items():
         owner_name = summaries[0].context.owner_name if summaries else None
-        ae_briefs[owner_email] = render_ae_brief(owner_name, summaries, today=today)
+        ae_briefs[owner_email] = render_ae_brief(
+            owner_name,
+            summaries,
+            today=today,
+            crm_url=crm_url,
+        )
 
     escalation_briefs: dict[str, Any] = {}
     for manager_email, summaries in routing.escalations.items():
@@ -198,6 +204,7 @@ def route_by_severity(
             ae_email=ae_email,
             summaries=summaries,
             today=today,
+            crm_url=crm_url,
         )
 
     return {"ae_briefs": ae_briefs, "escalation_briefs": escalation_briefs}
@@ -238,6 +245,7 @@ def build_graph(
     use_llm: bool = False,
     today: date | None = None,
     excluded_stages: list[str] | None = None,
+    crm_url: str | None = None,
 ) -> StateGraph:
     today = today or date.today()
 
@@ -262,7 +270,9 @@ def build_graph(
     graph.add_node("validate_actions", partial(validate_actions, use_llm=use_llm))
     graph.add_node(
         "route_by_severity",
-        partial(route_by_severity, escalation_config=escalation_config, today=today),
+        partial(
+            route_by_severity, escalation_config=escalation_config, today=today, crm_url=crm_url
+        ),
     )
     graph.add_node("send_emails", partial(send_emails, email_client=email_client))
 

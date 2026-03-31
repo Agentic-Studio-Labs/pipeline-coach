@@ -47,6 +47,7 @@ def run_pipeline_once(
         use_llm=app_config.llm_api_key is not None,
         today=today,
         excluded_stages=excluded_stages,
+        crm_url=app_config.twenty_api_url,
     )
 
     initial_state = {

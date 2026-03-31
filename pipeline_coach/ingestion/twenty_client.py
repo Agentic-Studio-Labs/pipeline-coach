@@ -10,8 +10,8 @@ logger = structlog.get_logger(__name__)
 
 class TwentyClient:
     def __init__(self, base_url: str, api_key: str) -> None:
+        self._graphql_url = f"{base_url.rstrip('/')}/graphql"
         self._http = httpx.Client(
-            base_url=f"{base_url}/graphql",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -24,7 +24,7 @@ class TwentyClient:
         if variables:
             payload["variables"] = variables
 
-        response = self._http.post("", json=payload)
+        response = self._http.post(self._graphql_url, json=payload)
         response.raise_for_status()
         data = response.json()
 
